@@ -1,0 +1,2 @@
+hostname,user,password,bucket,port,operation,dbname
+34.72.107.143,admin@rl.org,redislabs,kumar-demo,9443,export,testdb
