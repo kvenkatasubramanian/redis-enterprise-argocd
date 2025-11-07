@@ -11,6 +11,7 @@ import time
 import datetime as dt
 from datetime import datetime
 import urllib3
+import re
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Setup logging
@@ -87,7 +88,7 @@ def parse_iso(ts: str) -> dt.datetime:
 
 def fetch_logs(url, user, pwd, order="desc", timeout_s=10, verify_ssl=False):
     try:
-        resp = requests.get(url, params={"order": order}, auth=(user, pwd), timeout=timeout_s, verify=verify_ssl)
+        resp = requests.get(url, params={"order": order, "limit": 25}, auth=(user, pwd), timeout=timeout_s, verify=verify_ssl)
         resp.raise_for_status()
         data = resp.json()
         if not isinstance(data, list):
@@ -103,48 +104,6 @@ def normalize_bdb_uid(val):
 def matches_destination(event, bucket_name, region_name):
     dest = event.get("destination") or {}
     return dest.get("bucket_name") == bucket_name and dest.get("region_name") == region_name
-
-def aaextract_first_sequence(logs, bdb_uid, bucket_name, region_name):
-    request_evt = started_evt = succeeded_evt = None
-    req_time = start_time = succ_time = None
-
-    for ev in logs:
-        ev_type = ev.get("type")
-        ev_bdb = normalize_bdb_uid(ev.get("bdb_uid"))
-        if ev_bdb != str(bdb_uid):
-            continue
-                        
-        if ev_type == "bdb_export_succeeded" and matches_destination(ev, bucket_name, region_name):
-            if succeeded_evt is None:
-                succeeded_evt = ev
-                succ_time = parse_iso(ev["time"])
-                continue
-
-        if ev_type == "bdb_export_started" and matches_destination(ev, bucket_name, region_name):
-            t = parse_iso(ev["time"])
-            if started_evt is None and (succ_time is None or t <= succ_time):
-                started_evt = ev
-                start_time = t
-                continue
-
-        if ev_type == "bdb_export_request":
-            t = parse_iso(ev["time"])
-            if request_evt is None:
-                if start_time is not None and t <= start_time:
-                    request_evt = ev
-                    req_time = t
-                elif succ_time is not None and t <= succ_time:
-                    request_evt = ev
-                    req_time = t
-                elif start_time is None and succ_time is None:
-                    request_evt = ev
-                    req_time = t
-
-        if request_evt and started_evt and succeeded_evt:
-            if req_time <= start_time <= succ_time:
-                return request_evt, started_evt, succeeded_evt
-
-    return request_evt, started_evt, succeeded_evt
 
 def extract_first_sequence(logs, bdb_uid, bucket_name, region_name, operation):
     """
@@ -175,13 +134,13 @@ def extract_first_sequence(logs, bdb_uid, bucket_name, region_name, operation):
             continue
 
         t = parse_iso(ev["time"])
-
-        if ev_type == EVT_SUCCEEDED and matches_destination(ev, bucket_name, region_name):
+        
+        if ev_type == EVT_SUCCEEDED: # and matches_destination(ev, bucket_name, region_name):
             if not succeeded_evt:
                 succeeded_evt = ev
                 succ_time = t
 
-        elif ev_type == EVT_STARTED and matches_destination(ev, bucket_name, region_name):
+        elif ev_type == EVT_STARTED: # and matches_destination(ev, bucket_name, region_name):
             if not started_evt:
                 started_evt = ev
                 start_time = t
@@ -198,7 +157,7 @@ def extract_first_sequence(logs, bdb_uid, bucket_name, region_name, operation):
                 "started": start_time,
                 "succeeded": succ_time,
             }
-
+            
             # Sort times chronologically to verify order
             ordered = sorted(times.items(), key=lambda x: x[1])
             order = [x[0] for x in ordered]
@@ -209,8 +168,6 @@ def extract_first_sequence(logs, bdb_uid, bucket_name, region_name, operation):
                 return request_evt, started_evt, succeeded_evt
 
     return request_evt, started_evt, succeeded_evt
-
-
 
 def summarize_event(ev):
     if ev is None:
@@ -224,7 +181,7 @@ def summarize_event(ev):
 
 
 # Check Redis logs for export sequence
-def check_redis_log(user, pwd, url, bdb_uid, bucket_name, region_name,operation, max_wait_minutes=15, poll_interval_seconds=10, verify_ssl=False):
+def check_redis_log(user, pwd, url, bdb_uid, bucket_name, region_name,operation, max_wait_minutes=60, poll_interval_seconds=10, verify_ssl=False):
     """
     Poll Redis Enterprise logs for the import/export sequence of a specific BDB UID and bucket/region.
     Logs INFO, WARNING, ERROR messages using logging module.
@@ -264,7 +221,14 @@ def check_redis_log(user, pwd, url, bdb_uid, bucket_name, region_name,operation,
                 return False
             time.sleep(poll_interval_seconds)
             continue
-
+        log_result = extract_first_sequence(
+            logs,
+            bdb_uid=str(bdb_uid),
+            bucket_name=bucket_name,
+            region_name=region_name,
+            operation=operation
+        )
+        print(f"Logs fetched for analysis. done {log_result}")
         req, started, succ = extract_first_sequence(
             logs,
             bdb_uid=str(bdb_uid),
@@ -272,7 +236,6 @@ def check_redis_log(user, pwd, url, bdb_uid, bucket_name, region_name,operation,
             region_name=region_name,
             operation=operation
         )
-        
         # Log each event type when first detected
         if req and not seen_request:
             seen_request = True
@@ -291,8 +254,7 @@ def check_redis_log(user, pwd, url, bdb_uid, bucket_name, region_name,operation,
             t_req = parse_iso(req["time"])
             t_started = parse_iso(started["time"])
             t_succ = parse_iso(succ["time"])
-
-            print(f"t_started: {t_started}, t_req: {t_req}, t_succ: {t_succ}")
+            
             if operation.lower() == "import":
                 if t_started <= t_req <= t_succ:                
                     logging.info(f"{operation.capitalize()} sequence completed successfully in Redis logs.")
