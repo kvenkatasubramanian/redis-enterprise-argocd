@@ -97,9 +97,9 @@ def main():
     try:
         args = parser.parse_args()
 
-        # Conditional check: -timestamp is required for import
-        if args.operation == 'import' and not args.timestamp:
-            parser.error(Color.RED + f"-timestamp is required when operation is 'import'" + Color.RESET)
+        # # Conditional check: -timestamp is required for import
+        # if args.operation == 'import' and not args.timestamp:
+        #     parser.error(Color.RED + f"-timestamp is required when operation is 'import'" + Color.RESET)
 
     except argparse.ArgumentError as e:
         print("Error:", e.message)
@@ -214,8 +214,8 @@ def main():
                 print(Color.RED + f"{operation.capitalize()} did not complete. Check log for details: {log_file}" + Color.RESET)
 
     elif operation == 'import':
-        print(Color.INFO + f"Starting import operation for dbname:{dbname} with timestamp:{timestamp}..." + Color.RESET)
-        logging.info(f"Starting import operation for dbname:{dbname} with timestamp:{timestamp}...")
+        print(Color.INFO + f"Starting import operation for dbname:{dbname}" + Color.RESET)
+        logging.info(f"Starting import operation for dbname:{dbname}")
         # Create subdirectories in S3
         s3 = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
         try:
@@ -232,6 +232,7 @@ def main():
         paginator = s3.get_paginator('list_objects_v2')
         result = paginator.paginate(Bucket=bucketname, Prefix=hostname)
         databases = {}
+        timestamps = set()
 
         # Add all databases
         for page in result:
@@ -241,13 +242,50 @@ def main():
                     
                     tmp_db_name = key.split('/')[1]    #db_name
                     tmp_timestamp = key.split('/')[2]  #timestamp
-                    
+                    timestamps.add(tmp_timestamp)
+                    # if dbname == tmp_db_name and timestamp == tmp_timestamp:
+                    #     if dbname not in databases:
+                    #         databases[dbname] = set()
+                    #     if obj['Key'].split('/')[3]:
+                    #         databases[dbname].add(obj['Key'].split('/')[3]) # Filename only
+
+        #List all the timestamps for the specified dbname
+        timestamps = sorted(timestamps) 
+        if not timestamps:
+            logging.warning(f"No timestamps found for given {dbname}. Import cannot proceed.")
+            print(Color.RED +f"No timestamps found for given {dbname}. Import cannot proceed." + Color.RESET)
+            sys.exit(1) 
+        
+        print(f"\nAvailable timestamps for the database: {dbname}")
+        for i, ts in enumerate(timestamps, 1):
+                print(f"{i}. {ts}")
+        # Ask user to select one
+        while True:
+            choice = input("\nSelect a timestamp by number (0 to exit): ")
+            if choice == "0":
+                print(Color.RED +"Exiting." + Color.RESET)
+                sys.exit(0)
+            if choice.isdigit() and 1 <= int(choice) <= len(timestamps):
+                timestamp = timestamps[int(choice) - 1]
+                logging.info(f"You selected: {timestamp}")
+                print(Color.GREEN + f"\nYou selected: {timestamp}" + Color.RESET)
+                break
+            else:
+                print(Color.ORANGE + f"Invalid choice. Try again." + Color.RESET)
+
+        # Add all databases
+        for page in result:
+            if 'Contents' in page:
+                for obj in page['Contents']:
+                    key = obj['Key']                    
+                    tmp_db_name = key.split('/')[1]    #db_name
+                    tmp_timestamp = key.split('/')[2]  #timestamp                    
                     if dbname == tmp_db_name and timestamp == tmp_timestamp:
                         if dbname not in databases:
                             databases[dbname] = set()
                         if obj['Key'].split('/')[3]:
                             databases[dbname].add(obj['Key'].split('/')[3]) # Filename only
-                        
+
         # Get only the database names from the cluster
         cluster_db_names = set(db_info.keys())
         s3_databases = set(databases.keys())
