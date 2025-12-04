@@ -1,0 +1,93 @@
+✅ 1. Create Secrets in OpenShift and Read Them in Import/Export Script
+Description
+
+Create the required OpenShift Secrets to store sensitive values such as Redis credentials, AWS keys, and S3 certificates. Update the import/export scripts to read these secrets at runtime through environment variables or mounted files.
+
+Acceptance Criteria
+    OpenShift Secrets are created for Redis credentials, AWS keys, and S3 certificates.
+    Secrets are mounted or exposed as environment variables to the pod.
+    Import/export Python scripts read values directly from the mounted secrets.
+    No hard-coded credentials remain in the code.
+    Validate that the scripts successfully run using secret-based values.
+
+========================================================================================
+✅ 2. Create ConfigMap and Mount It to the Pod
+Description
+
+Create a ConfigMap to store non-sensitive configuration values such as cluster details, endpoint URLs, and scheduling parameters, and mount it into the pod so the scripts can use those values.
+
+Acceptance Criteria
+    ConfigMap is created with required configuration fields.
+    ConfigMap is mounted into the export/import pod as a file or environment variables.
+    Scripts successfully read configuration from the mounted ConfigMap.
+    Updating the ConfigMap correctly changes the script behavior on the next run.
+
+========================================================================================
+✅ 3. Enable ConfigMap Reload Without Pod Rebuilds
+Description
+
+Update the pod or deployment setup to allow configuration changes through a ConfigMap without requiring a new pod build or container image change.
+
+Acceptance Criteria
+    Pod reads ConfigMap values at runtime (not baked into the image).
+    ConfigMap updates take effect on pod restart without rebuilding the image.
+    No code modifications are required for future config changes.
+    Documentation added on how to update the ConfigMap and apply changes.
+
+
+========================================================================================
+✅ 1. Develop Database Export Scheduler
+Description
+
+Create a scheduler in OpenShift that automatically triggers the database export Python script at configured intervals. The scheduler should run as a CronJob, executing the export script without manual intervention. This enables consistent and automated backups of all required Redis Enterprise databases.
+
+Acceptance Criteria
+    An OpenShift CronJob is created to execute the export script.
+    Execution frequency is configurable (e.g., daily, hourly, etc.).
+    CronJob uses the correct service account, environment variables, and secrets.
+    Logs from each execution are stored and accessible in OpenShift.
+    If a job fails, OpenShift marks the run as failed.
+    Scheduler correctly triggers the existing export script without manual intervention.
+    Documentation updated with instructions on modifying the scheduler.
+========================================================================================
+✅ 2. Create Script to Query OpenShift Cluster Metadata to Extract REC Name
+Description
+
+Develop a script that dynamically queries the OpenShift cluster to retrieve the REC (Redis Enterprise Cluster) name. The REC name is currently hardcoded in the export/import scripts; this new logic must automatically determine the REC name by querying OpenShift APIs or labels.
+
+Acceptance Criteria
+    Script retrieves REC name using OpenShift API calls or oc CLI queries.
+    Script works inside the OpenShift pod environment.
+    Output returns only the REC name with no additional formatting.
+    Script handles missing or multiple RECs gracefully with clear error messages.
+    Script can be called independently and returns the correct REC name.
+    Logging is included for debugging.
+========================================================================================
+✅ 3. Integrate Dynamic REC Name Retrieval Into Export/Import Scripts
+Description
+
+Integrate the REC name obtained from the metadata script into the existing export and import Python scripts. The scripts should no longer rely on hardcoded values but should automatically fetch the REC name before performing any REST API operations.
+
+Acceptance Criteria
+    Export and import scripts call the REC-extraction script before execution.
+    Hardcoded REC name is removed entirely from both scripts.
+    If REC name cannot be retrieved, script exits with a meaningful error.
+    Verified that REST API URLs are constructed using the dynamically retrieved name.
+    Import/export functionality works end-to-end inside the OpenShift pod.
+    Logging reflects the dynamically detected REC name.
+========================================================================================
+✅ 4. Validate and Test S3 Certificate and URL in Backup Script
+Description
+
+Validate that the export backup script functions correctly with a custom S3-compatible storage endpoint and certificate. Ensure that the script successfully connects to the custom S3 URL using the certificate supplied via OpenShift secrets and that exports are stored in the expected location.
+
+Acceptance Criteria
+    Certificate is successfully mounted or injected into the backup pod.
+    Script validates S3 connectivity using custom endpoint URL and certificate.
+    Export to custom S3 bucket completes without SSL or connection errors.
+    Error handling is added for certificate validation failures.
+    Test backup is executed and confirmed to appear in the expected S3 prefix.
+    Logging clearly shows connection success or failure.
+    Documentation updated with:
+        How to provide certificate
+        How to configure custom S3 URL
