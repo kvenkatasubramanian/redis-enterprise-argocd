@@ -77,7 +77,7 @@ def main():
     dbname = os.getenv('DB_NAME')
     endpoint_url = os.getenv('ENDPOINT_URL')  
     aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
-    aws_secret_access_key_id = os.getenv('aws_secret_access_key_id')
+    aws_secret_access_key_id = os.getenv('AWS_SECRET_ACCESS_KEY_ID')
 
     missing = []
     if not hostname: missing.append("REC_NAME") 
@@ -85,9 +85,9 @@ def main():
     if not password: missing.append("REC_PASSWORD")
     if not bucketname: missing.append("BUCKET_NAME")
     if not dbname: missing.append("DB_NAME")
-    if not endpoint_url: missing.append("ENDPOINT_URL")    
+    if not endpoint_url: missing.append("ENDPOINT_URL")        if not aws_access_key_id: missing.append("AWS_ACCESS_KEY_ID")
     if not aws_access_key_id: missing.append("AWS_ACCESS_KEY_ID")
-    if not aws_secret_access_key_id: missing.append("aws_secret_access_key_id")
+    if not aws_secret_access_key_id: missing.append("AWS_SECRET_ACCESS_KEY_ID")
 
     if missing:
         logging.error(f"Missing required environment variables: {', '.join(missing)}")
@@ -140,13 +140,13 @@ def main():
             if endpoint_url == '' or endpoint_url is None:
                 s3 = boto3.client('s3', 
                     aws_access_key_id=aws_access_key_id, 
-                    aws_secret_access_key_id=aws_secret_access_key_id)
+                    aws_secret_access_key=aws_secret_access_key_id)
             else:
                 #bofa specific endpoint
                 s3 = boto3.client('s3', 
                     endpoint_url=endpoint_url,
                     aws_access_key_id=aws_access_key_id, 
-                    aws_secret_access_key_id=aws_secret_access_key_id,
+                    aws_secret_access_key=aws_secret_access_key_id,
                     verify=False)
 
             try:
