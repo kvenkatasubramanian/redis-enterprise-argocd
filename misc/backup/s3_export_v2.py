@@ -85,7 +85,7 @@ def main():
     if not password: missing.append("REC_PASSWORD")
     if not bucketname: missing.append("BUCKET_NAME")
     if not dbname: missing.append("DB_NAME")
-    if not endpoint_url: missing.append("ENDPOINT_URL")        if not aws_access_key_id: missing.append("AWS_ACCESS_KEY_ID")
+    if not endpoint_url: missing.append("ENDPOINT_URL")       
     if not aws_access_key_id: missing.append("AWS_ACCESS_KEY_ID")
     if not aws_secret_access_key_id: missing.append("AWS_SECRET_ACCESS_KEY_ID")
 
