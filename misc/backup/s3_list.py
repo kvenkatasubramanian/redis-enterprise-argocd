@@ -192,7 +192,7 @@ def main():
                 parts = obj['Key'].split('/')
                 if len(parts) > 2:
                     tmp_db_name = parts[1]   #db_name
-                    if tmp_db_name == tmp_db_name:                            
+                    if tmp_db_name == dbname:                            
                         timestamps.add(parts[2]) # timestamp
 
     #List all the timestamps for the specified dbname
