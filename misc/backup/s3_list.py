@@ -66,11 +66,19 @@ def get_db_info(hostname, port, uid, auth):
 
 
 def main():
-
+    parser = argparse.ArgumentParser(description='Export or Import databases to/from AWS S3')
     parser.add_argument("--mode", required=True, choices=["list", "import"], help="list or import mode")   # <-- NEW
     parser.add_argument("--timestamp", help="Timestamp for import mode")
 
-    args = parser.parse_args()
+    args = None
+    try:
+        args = parser.parse_args()
+
+    except argparse.ArgumentError as e:
+        print("Error:", e.message)
+        parser.print_help()
+        sys.exit(1)
+
     mode = args.mode                                                                                        # <-- NEW
     timestamp = args.timestamp 
 
@@ -202,100 +210,6 @@ def main():
         for i, ts in enumerate(timestamps, 1):
                 print(f"{i}. {ts}")
 
-
-    # # Ask user to select one
-    # while True:
-    #     choice = input("\nSelect a timestamp by number (0 to exit): ")
-    #     if choice == "0":
-    #         print(Color.RED +"Exiting." + Color.RESET)
-    #         sys.exit(0)
-    #     if choice.isdigit() and 1 <= int(choice) <= len(timestamps):
-    #         timestamp = timestamps[int(choice) - 1]
-    #         logging.info(f"You selected: {timestamp}")
-    #         print(Color.GREEN + f"\nYou selected: {timestamp}" + Color.RESET)
-    #         break
-    #     else:
-    #         print(Color.ORANGE + f"Invalid choice. Try again." + Color.RESET)
-
-    # Part II: Mode == import
-    # Add all databases
-    for page in result:
-        if 'Contents' in page:
-            for obj in page['Contents']:
-                key = obj['Key']                    
-                tmp_db_name = key.split('/')[1]    #db_name
-                tmp_timestamp = key.split('/')[2]  #timestamp                    
-                if dbname == tmp_db_name and timestamp == tmp_timestamp:
-                    if dbname not in databases:
-                        databases[dbname] = set()
-                    if obj['Key'].split('/')[3]:
-                        databases[dbname].add(obj['Key'].split('/')[3]) # Filename only
-
-    # Get only the database names from the cluster
-    cluster_db_names = set(db_info.keys())
-    s3_databases = set(databases.keys())
-    available_databases = []
-
-    if dbname:
-        # 1. Get values in S3 and cluster
-        available_databases = list(s3_databases.intersection(cluster_db_names))
-
-        # 2. Get values not in S3 but in cluster
-        missing_in_databases = cluster_db_names.difference(s3_databases)
-        if len(missing_in_databases) > 0:
-            logging.warning(f"No backup file exists for the database '{missing_in_databases}' with the specified timestamp: {timestamp}.")
-            print(Color.ORANGE + f"No backup file exists for the database '{missing_in_databases}' with the specified timestamp: {timestamp}." + Color.RESET)
-    else:
-        # Check each value in dbnames
-        
-        #1. Get values not in S3 but in cluster
-        if dbname in databases and dbname in cluster_db_names: 
-            available_databases.append(dbname)
-
-        #2. Get values not in cluster    
-        elif dbname in databases: 
-            logging.warning(f"Database '{dbname}' does not exist in the cluster.")
-            print(Color.ORANGE + f"Database '{dbname}' does not exist in the cluster." + Color.RESET) 
-
-        #3. Get values not in s3
-        elif dbname in cluster_db_names:
-                logging.warning(f"No backup file exists for the database '{dbname}' with the specified timestamp: {timestamp}.")
-                print(Color.ORANGE + f"No backup file exists for the database '{dbname}' with the specified timestamp: {timestamp}." + Color.RESET)      
-    
-    # import operation       
-    
-    for db_name, files in databases.items():            
-        if db_name in available_databases:
-            logging.info(f"Importing data from dbname:{db_name}...")
-            print(Color.INFO + f"Importing data from dbname:{db_name}..." + Color.RESET)
-            uid = db_info[db_name].get('uid')
-            import_data = []
-            for file in files:
-                if file:
-                    import_data.append({
-                        "type": "s3",
-                        "bucket_name": bucketname,
-                        "subdir": f"/{hostname}/{db_name}/{timestamp}/",
-                        "filename": file,
-                        "access_key_id": aws_access_key_id,
-                        "secret_access_key": aws_secret_access_key
-                    })
-            
-            data = {"dataset_import_sources": import_data, "email_notification": True}
-            
-            response = requests.post(
-                f"https://{hostname}:{port}/v1/bdbs/{uid}/actions/import",
-                auth=auth,
-                headers={"Content-Type": "application/json"},
-                json=data,
-                verify=False
-            )
-            if response.status_code == 200:
-                logging.info(f"Redis {operation.capitalize()} completed successfully. See log: {log_file}")
-                print(Color.GREEN + f"Redis {operation.capitalize()} completed successfully. See log: {log_file}" + Color.RESET)
-            else:
-                logging.error(f"Redis {operation.capitalize()} failed!, response.text: {response.text}")
-                print(Color.RED + f"{operation.capitalize()} did not complete. Check log for details: {log_file}" + Color.RESET)
 
 if __name__ == "__main__":
     main()
