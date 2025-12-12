@@ -67,7 +67,7 @@ def get_db_info(hostname, port, uid, auth):
 
 def main():
     parser = argparse.ArgumentParser(description='Export or Import databases to/from AWS S3')
-    parser.add_argument("--mode", required=True, choices=["list", "import"], help="list or import mode")   # <-- NEW
+    parser.add_argument("--mode", required=True, choices=["list", "import"], help="list or import mode")   
     parser.add_argument("--timestamp", help="Timestamp for import mode")
 
     args = None
@@ -79,7 +79,7 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    mode = args.mode                                                                                        # <-- NEW
+    mode = args.mode                                                                                        
     timestamp = args.timestamp 
 
     # Read secrets from environment variables (Kubernetes Secrets)
@@ -110,7 +110,7 @@ def main():
         sys.exit(1)
 
     # Validate timestamp only for import mode
-    if mode == "import" and not timestamp:                                                         # <-- NEW
+    if mode == "import" and not timestamp:                                                         
         print(Color.RED + "Error: --timestamp is required in import mode" + Color.RESET)
         logging.error("Error: --timestamp is required in import mode")
         sys.exit(1)
@@ -207,11 +207,11 @@ def main():
         print(f"\nAvailable timestamps for the database: {dbname}")
         for i, ts in enumerate(timestamps, 1):
                 print(f"{i}. {ts}")
-
-    elif mode == "import":                                                                                       # <-- NEW
-        # -------------------------------
-        # MODE = IMPORT
-        # -------------------------------                                                                    # <-- NEW
+    # -------------------------------
+    # MODE = IMPORT
+    # -------------------------------   
+    elif mode == "import":                                                                                      
+                                                                 
 
         print(Color.INFO + f"Importing data for dbname:{dbname} with timestamp:{timestamp}" + Color.RESET)
         logging.info(f"Importing data for dbname:{dbname} with timestamp:{timestamp}")
