@@ -1,3 +1,45 @@
+
+Develop S3 backup for OpenShift (automation)
+
+✅ Create an Ansible playbook to automate database backup operations in a K8/OpenShift environment.
+
+Acceptance Criteria
+
+Ansible playbook is created to trigger database backup operations.
+
+Playbook runs against a K8/OpenShift cluster.
+
+Required inputs (namespace, database name, backup location, credentials) are configurable.
+
+Playbook is idempotent and can be re-run safely.
+
+Logs are generated for each backup execution.
+
+Playbook execution status (success/failure) is clearly reported.
+========================================================================================
+✅ Support Backup for Persistent Databases (Single & Active-Active) - One Database (automation)
+
+Enhance the Ansible-based backup automation to support one database with persistence enabled. The solution must work for both single database deployments and Active-Active database configurations.
+Acceptance Criteria
+Playbook validates that database persistence is enabled before backup.
+Backup runs only for databases with persistence turned on.
+
+Supports: Single Database
+Single database deployments
+Active-Active database deployments
+
+✅ Support Backup for Persistent Multiple Databases (Single & Active-Active) - Multiple Databases (automation)
+Enhance the Ansible-based backup automation to support multiple databases with persistence enabled in a cluster. The solution must work for both single database deployments and Active-Active database configurations.
+
+Playbook validates that database persistence is enabled before backup.
+Backup runs only for databases with persistence turned on.
+
+Supports: Multiple Databases in a cluster
+Single database deployments
+Active-Active database deployments
+
+
+========================================================================================
 ✅ 1. Create Secrets in OpenShift and Read Them in Import/Export Script
 Description
 
