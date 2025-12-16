@@ -1,1 +1,2 @@
-clname:test,port:9443,host:localhost,cluser:demo@redis.com,clpass:dGVzdAo=,cldesc:test,backup_location:/tmp/backup
+clname,port:9443,host,cluser,clpass,cldesc,operation,dbname,backup_type,backup_location
+kumar,9443,136.114.78.102,admin@rl.org,redislabs,test,testdb,export,s3,s3://kumar-demo/

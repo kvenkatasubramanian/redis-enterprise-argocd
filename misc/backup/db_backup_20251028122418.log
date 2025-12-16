@@ -1,9 +1,0 @@
-2025-10-28 12:24:18,285 - INFO - Loaded 1 sets of parameters from CSV
-2025-10-28 12:24:18,611 - INFO - Database: testdb, total_keys: 1160
-2025-10-28 12:24:21,153 - INFO - Checking Redis logs for bdb_uid=1, bucket=kumar-demo, region=34.72.107.143/testdb/20251028122418
-2025-10-28 12:24:21,406 - INFO - Found bdb_export_request event at 2025-10-28T17:24:21Z for bdb_uid=1, by admin@rl.org, Role: Administrator
-2025-10-28 12:24:21,407 - INFO - Found bdb_export_started event at 2025-10-28T17:24:21Z for bdb_uid=1
-2025-10-28 12:24:21,407 - INFO - Waiting for next log poll...
-2025-10-28 12:24:31,653 - INFO - Found bdb_export_succeeded event at 2025-10-28T17:24:28Z for bdb_uid=1
-2025-10-28 12:24:31,653 - INFO - Export sequence completed successfully in Redis logs.
-2025-10-28 12:24:31,654 - INFO - Verified Redis log: Export succeeded for database testdb
