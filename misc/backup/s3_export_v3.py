@@ -126,12 +126,13 @@ def main():
         db_info[name]["persistence"] = (item.get("data_persistence") == "aof")
 
 
-    if dbname not in db_info:
+    if dbname and dbname not in db_info:
         print(Color.INFO + f"Database '{dbname}' does not exist in the cluster." + Color.RESET)
 
     # Export operation 
     for db_name, db_details in db_info.items():
         persistence = db_details['persistence']
+        print(Color.INFO + f"Processing Database: {db_name}, Persistence: {persistence} - Backup can't be done!" + Color.RESET)
         if persistence:
             uid = db_details['uid']
             no_of_keys = db_details['no_of_keys']
