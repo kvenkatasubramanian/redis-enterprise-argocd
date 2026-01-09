@@ -32,12 +32,20 @@ class Color:
 def now_folder() -> str:
     return f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-
+# Delete all objects under a given prefix
 def delete_objects(s3, bucketname, prefix):
-    response = s3.list_objects_v2(Bucket=bucketname, Prefix=prefix)
-    if 'Contents' in response:
-        for obj in response['Contents']:
-            s3.delete_object(Bucket=bucketname, Key=obj['Key'])
+    deleted_count = 0
+
+    paginator = s3.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=bucketname, Prefix=prefix):
+        if 'Contents' in page:
+            for obj in page['Contents']:
+                s3.delete_object(Bucket=bucketname, Key=obj['Key'])
+                deleted_count += 1
+                logging.info(f"Deleted S3 object: {bucketname}/{obj['Key']}")
+
+    return deleted_count
+
 
 def get_db_info(hostname, port, uid, auth):
     url = f"https://{hostname}:{port}/v1/bdbs/{uid}/command"
@@ -203,10 +211,10 @@ def main():
 
 
         # ---------------------------------------------------
-        # Find folders older than 5 days
+        # Find folders older than 31 days
         # ---------------------------------------------------
         now = datetime.now(timezone.utc)
-        cutoff = now - dt.timedelta(days=5)
+        cutoff = now - dt.timedelta(days=31)
 
         old_timestamps = []
         for ts in timestamps:
@@ -216,29 +224,22 @@ def main():
                     old_timestamps.append(ts)
             except ValueError:
                 logging.warning(f"Skipping invalid timestamp folder: {ts}")
+                print(Color.ORANGE + f"Skipping invalid timestamp folder: {ts}" + Color.RESET)
 
         if not old_timestamps:
-            print(Color.GREEN + "\nNo folders older than 5 days found." + Color.RESET)
+            print(Color.GREEN + "\nNo folders older than 31 days found." + Color.RESET)
+            logging.info("No folders older than 31 days found.")
             return
 
-        print(Color.ORANGE + "\nThe following folders are older than 5 days and eligible for deletion:" + Color.RESET)
+        print(Color.ORANGE + "\nThe following folders are older than 31 days and eligible for deletion:" + Color.RESET)
+        logging.info("Folders older than 31 days eligible for deletion:")
+
         for ts in old_timestamps:
             print(f" - {ts}")
+            logging.info(f"Marked for deletion: s3://{bucketname}/{hostname}/{dbname}/{ts}/")
+            print(Color.INFO + f"Marked for deletion: s3://{bucketname}/{hostname}/{dbname}/{ts}/" + Color.RESET)
 
-        # ---------------------------------------------------
-        # Confirmation
-        # ---------------------------------------------------
-        confirm = input(
-            Color.RED +
-            "\nDo you want to DELETE all the above folders? Type 'yes' to confirm: " +
-            Color.RESET
-        ).strip().lower()
-
-        if confirm != "yes":
-            print(Color.INFO + "Deletion cancelled by user." + Color.RESET)
-            logging.info("User cancelled deletion of old folders.")
-            return
-
+        total_objects_deleted = 0
         # ---------------------------------------------------
         # Delete folders
         # ---------------------------------------------------
@@ -246,11 +247,25 @@ def main():
             prefix = f"{hostname}/{dbname}/{ts}/"
             print(Color.INFO + f"Deleting folder: {prefix}" + Color.RESET)
             logging.info(f"Deleting folder: {prefix}")
-            delete_objects(s3, bucketname, prefix)
+            deleted = delete_objects(s3, bucketname, prefix)
+            total_objects_deleted += deleted
 
-        print(Color.GREEN + "\nDeletion completed successfully." + Color.RESET)
-        logging.info("Old folder deletion completed.")
+        logging.info(
+            f"Completed deletion for folder {ts} "
+            f"(objects deleted: {deleted})"
+        )
 
+    logging.info(
+        f"Deletion summary: folders deleted={len(old_timestamps)}, "
+        f"objects deleted={total_objects_deleted}"
+    )
+
+    print(
+        Color.GREEN +
+        f"\nDeletion completed. Folders: {len(old_timestamps)}, "
+        f"Objects deleted: {total_objects_deleted}" +
+        Color.RESET
+    )
 
 
 if __name__ == "__main__":
