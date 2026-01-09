@@ -9,7 +9,7 @@ import logging
 import argparse
 import time
 import datetime as dt
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import urllib3
 import re
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -62,6 +62,86 @@ def get_db_info(hostname, port, uid, auth):
         logging.error(f"Error fetching info for database {uid}: {e}")
         print(Color.RED + f"Error fetching info for database {uid}: {e}" + Color.RESET)
         return {}
+
+
+def delete_s3_timestamp_folders(
+    s3,
+    bucketname: str,
+    hostname: str,
+    dbname: str,
+    retention_days: int = 5
+) -> dict:
+    """
+    Delete S3 folders named as timestamps (YYYYMMDDHHMMSS) older than retention_days.
+    """
+
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=retention_days)
+
+    logging.info(
+        f"Starting S3 cleanup before export: "
+        f"s3://{bucketname}/{hostname}/{dbname}, "
+        f"retention_days={retention_days}, cutoff={cutoff.isoformat()}"
+    )
+
+    paginator = s3.get_paginator("list_objects_v2")
+    timestamps = set()
+
+    for page in paginator.paginate(
+        Bucket=bucketname,
+        Prefix=f"{hostname}/{dbname}/"
+    ):
+        if "Contents" not in page:
+            continue
+
+        for obj in page["Contents"]:
+            parts = obj["Key"].split("/")
+            if len(parts) > 2:
+                timestamps.add(parts[2])
+
+    old_timestamps = []
+    for ts in sorted(timestamps):
+        try:
+            ts_dt = datetime.strptime(ts, "%Y%m%d%H%M%S").replace(
+                tzinfo=timezone.utc
+            )
+            if ts_dt < cutoff:
+                old_timestamps.append(ts)
+        except ValueError:
+            logging.warning(f"Skipping invalid timestamp folder: {ts}")
+
+    total_objects_deleted = 0
+
+    for ts in old_timestamps:
+        prefix = f"{hostname}/{dbname}/{ts}/"
+        logging.info(f"Deleting old backup folder: s3://{bucketname}/{prefix}")
+
+        for page in paginator.paginate(
+            Bucket=bucketname,
+            Prefix=prefix
+        ):
+            if "Contents" in page:
+                for obj in page["Contents"]:
+                    s3.delete_object(
+                        Bucket=bucketname,
+                        Key=obj["Key"]
+                    )
+                    total_objects_deleted += 1
+                    logging.info(
+                        f"Deleted S3 object: "
+                        f"s3://{bucketname}/{obj['Key']}"
+                    )
+
+    logging.info(
+        f"S3 cleanup completed: folders_deleted={len(old_timestamps)}, "
+        f"objects_deleted={total_objects_deleted}"
+    )
+
+    return {
+        "folders_deleted": len(old_timestamps),
+        "objects_deleted": total_objects_deleted,
+        "folders": old_timestamps
+    }
 
 
 def main():
@@ -205,67 +285,78 @@ def main():
     # MODE = LIST
     # -------------------------------
     if mode == "list":                                                                                       # <-- NEW
-        print(f"\nAvailable timestamps for the database: {dbname}")
+        print(Color.INFO + f"\nAvailable timestamps for the database: {dbname}" + Color.RESET)
+        logging.info(f"Available timestamps for the database: {dbname}")
         for i, ts in enumerate(timestamps, 1):
                 print(f"{i}. {ts}")
 
-
-        # ---------------------------------------------------
-        # Find folders older than 31 days
-        # ---------------------------------------------------
-        now = datetime.now(timezone.utc)
-        cutoff = now - dt.timedelta(days=31)
-
-        old_timestamps = []
-        for ts in timestamps:
-            try:
-                ts_dt = datetime.strptime(ts, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
-                if ts_dt < cutoff:
-                    old_timestamps.append(ts)
-            except ValueError:
-                logging.warning(f"Skipping invalid timestamp folder: {ts}")
-                print(Color.ORANGE + f"Skipping invalid timestamp folder: {ts}" + Color.RESET)
-
-        if not old_timestamps:
-            print(Color.GREEN + "\nNo folders older than 31 days found." + Color.RESET)
-            logging.info("No folders older than 31 days found.")
-            return
-
-        print(Color.ORANGE + "\nThe following folders are older than 31 days and eligible for deletion:" + Color.RESET)
-        logging.info("Folders older than 31 days eligible for deletion:")
-
-        for ts in old_timestamps:
-            print(f" - {ts}")
-            logging.info(f"Marked for deletion: s3://{bucketname}/{hostname}/{dbname}/{ts}/")
-            print(Color.INFO + f"Marked for deletion: s3://{bucketname}/{hostname}/{dbname}/{ts}/" + Color.RESET)
-
-        total_objects_deleted = 0
-        # ---------------------------------------------------
-        # Delete folders
-        # ---------------------------------------------------
-        for ts in old_timestamps:
-            prefix = f"{hostname}/{dbname}/{ts}/"
-            print(Color.INFO + f"Deleting folder: {prefix}" + Color.RESET)
-            logging.info(f"Deleting folder: {prefix}")
-            deleted = delete_objects(s3, bucketname, prefix)
-            total_objects_deleted += deleted
-
-            logging.info(
-                f"Completed deletion for folder {ts} "
-                f"(objects deleted: {deleted})"
-            )
-
-        logging.info(
-            f"Deletion summary: folders deleted={len(old_timestamps)}, "
-            f"objects deleted={total_objects_deleted}"
+        summary = delete_s3_timestamp_folders(
+            s3=s3,
+            bucketname=bucketname,
+            hostname=hostname,
+            dbname=dbname,
+            retention_days=5
         )
 
-        print(
-            Color.GREEN +
-            f"\nDeletion completed. Folders: {len(old_timestamps)}, "
-            f"Objects deleted: {total_objects_deleted}" +
-            Color.RESET
-        )
+        print(Color.GREEN + summary + Color.RESET)
+
+
+        # # ---------------------------------------------------
+        # # Find folders older than 31 days
+        # # ---------------------------------------------------
+        # now = datetime.now(timezone.utc)
+        # cutoff = now - dt.timedelta(days=31)
+
+        # old_timestamps = []
+        # for ts in timestamps:
+        #     try:
+        #         ts_dt = datetime.strptime(ts, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+        #         if ts_dt < cutoff:
+        #             old_timestamps.append(ts)
+        #     except ValueError:
+        #         logging.warning(f"Skipping invalid timestamp folder: {ts}")
+        #         print(Color.ORANGE + f"Skipping invalid timestamp folder: {ts}" + Color.RESET)
+
+        # if not old_timestamps:
+        #     print(Color.GREEN + "\nNo folders older than 31 days found." + Color.RESET)
+        #     logging.info("No folders older than 31 days found.")
+        #     return
+
+        # print(Color.ORANGE + "\nThe following folders are older than 31 days and eligible for deletion:" + Color.RESET)
+        # logging.info("Folders older than 31 days eligible for deletion:")
+
+        # for ts in old_timestamps:
+        #     print(f" - {ts}")
+        #     logging.info(f"Marked for deletion: s3://{bucketname}/{hostname}/{dbname}/{ts}/")
+        #     print(Color.INFO + f"Marked for deletion: s3://{bucketname}/{hostname}/{dbname}/{ts}/" + Color.RESET)
+
+        # total_objects_deleted = 0
+        # # ---------------------------------------------------
+        # # Delete folders
+        # # ---------------------------------------------------
+        # for ts in old_timestamps:
+        #     prefix = f"{hostname}/{dbname}/{ts}/"
+        #     print(Color.INFO + f"Deleting folder: {prefix}" + Color.RESET)
+        #     logging.info(f"Deleting folder: {prefix}")
+        #     deleted = delete_objects(s3, bucketname, prefix)
+        #     total_objects_deleted += deleted
+
+        #     logging.info(
+        #         f"Completed deletion for folder {ts} "
+        #         f"(objects deleted: {deleted})"
+        #     )
+
+        # logging.info(
+        #     f"Deletion summary: folders deleted={len(old_timestamps)}, "
+        #     f"objects deleted={total_objects_deleted}"
+        # )
+
+        # print(
+        #     Color.GREEN +
+        #     f"\nDeletion completed. Folders: {len(old_timestamps)}, "
+        #     f"Objects deleted: {total_objects_deleted}" +
+        #     Color.RESET
+        # )
 
 
 if __name__ == "__main__":
