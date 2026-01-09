@@ -9,7 +9,7 @@ import logging
 import argparse
 import time
 import datetime as dt
-from datetime import datetime
+from datetime import datetime, timezone
 import urllib3
 import re
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -32,15 +32,6 @@ class Color:
 def now_folder() -> str:
     return f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-def confirm(prompt):
-    while True:
-        user_input = input(prompt + " [y/n]: ").strip().lower()
-        if user_input in {'y', 'yes'}:
-            return True
-        elif user_input in {'n', 'no'}:
-            return False
-        else:
-            print("Invalid input. Please enter 'y' or 'n'.")
 
 def delete_objects(s3, bucketname, prefix):
     response = s3.list_objects_v2(Bucket=bucketname, Prefix=prefix)
@@ -209,6 +200,57 @@ def main():
         print(f"\nAvailable timestamps for the database: {dbname}")
         for i, ts in enumerate(timestamps, 1):
                 print(f"{i}. {ts}")
+
+
+        # ---------------------------------------------------
+        # Find folders older than 5 days
+        # ---------------------------------------------------
+        now = datetime.now(timezone.utc)
+        cutoff = now - dt.timedelta(days=5)
+
+        old_timestamps = []
+        for ts in timestamps:
+            try:
+                ts_dt = datetime.strptime(ts, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+                if ts_dt < cutoff:
+                    old_timestamps.append(ts)
+            except ValueError:
+                logging.warning(f"Skipping invalid timestamp folder: {ts}")
+
+        if not old_timestamps:
+            print(Color.GREEN + "\nNo folders older than 5 days found." + Color.RESET)
+            return
+
+        print(Color.ORANGE + "\nThe following folders are older than 5 days and eligible for deletion:" + Color.RESET)
+        for ts in old_timestamps:
+            print(f" - {ts}")
+
+        # ---------------------------------------------------
+        # Confirmation
+        # ---------------------------------------------------
+        confirm = input(
+            Color.RED +
+            "\nDo you want to DELETE all the above folders? Type 'yes' to confirm: " +
+            Color.RESET
+        ).strip().lower()
+
+        if confirm != "yes":
+            print(Color.INFO + "Deletion cancelled by user." + Color.RESET)
+            logging.info("User cancelled deletion of old folders.")
+            return
+
+        # ---------------------------------------------------
+        # Delete folders
+        # ---------------------------------------------------
+        for ts in old_timestamps:
+            prefix = f"{hostname}/{dbname}/{ts}/"
+            print(Color.INFO + f"Deleting folder: {prefix}" + Color.RESET)
+            logging.info(f"Deleting folder: {prefix}")
+            delete_objects(s3, bucketname, prefix)
+
+        print(Color.GREEN + "\nDeletion completed successfully." + Color.RESET)
+        logging.info("Old folder deletion completed.")
+
 
 
 if __name__ == "__main__":
