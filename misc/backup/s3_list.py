@@ -298,7 +298,7 @@ def main():
             retention_days=5
         )
 
-        print(Color.GREEN + summary + Color.RESET)
+        print(Color.GREEN + f"\n {summary} " + Color.RESET)
 
 
         # # ---------------------------------------------------
