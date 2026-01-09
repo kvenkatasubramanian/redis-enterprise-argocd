@@ -250,22 +250,22 @@ def main():
             deleted = delete_objects(s3, bucketname, prefix)
             total_objects_deleted += deleted
 
+            logging.info(
+                f"Completed deletion for folder {ts} "
+                f"(objects deleted: {deleted})"
+            )
+
         logging.info(
-            f"Completed deletion for folder {ts} "
-            f"(objects deleted: {deleted})"
+            f"Deletion summary: folders deleted={len(old_timestamps)}, "
+            f"objects deleted={total_objects_deleted}"
         )
 
-    logging.info(
-        f"Deletion summary: folders deleted={len(old_timestamps)}, "
-        f"objects deleted={total_objects_deleted}"
-    )
-
-    print(
-        Color.GREEN +
-        f"\nDeletion completed. Folders: {len(old_timestamps)}, "
-        f"Objects deleted: {total_objects_deleted}" +
-        Color.RESET
-    )
+        print(
+            Color.GREEN +
+            f"\nDeletion completed. Folders: {len(old_timestamps)}, "
+            f"Objects deleted: {total_objects_deleted}" +
+            Color.RESET
+        )
 
 
 if __name__ == "__main__":
