@@ -32,12 +32,19 @@ class Color:
 def now_folder() -> str:
     return f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-
+# Delete all objects under a given prefix
 def delete_objects(s3, bucketname, prefix):
-    response = s3.list_objects_v2(Bucket=bucketname, Prefix=prefix)
-    if 'Contents' in response:
-        for obj in response['Contents']:
-            s3.delete_object(Bucket=bucketname, Key=obj['Key'])
+    deleted_count = 0
+
+    paginator = s3.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=bucketname, Prefix=prefix):
+        if 'Contents' in page:
+            for obj in page['Contents']:
+                s3.delete_object(Bucket=bucketname, Key=obj['Key'])
+                deleted_count += 1
+                logging.info(f"Deleted S3 object: {bucketname}/{obj['Key']}")
+
+    return deleted_count
 
 def get_db_info(hostname, port, uid, auth):
     url = f"https://{hostname}:{port}/v1/bdbs/{uid}/command"
