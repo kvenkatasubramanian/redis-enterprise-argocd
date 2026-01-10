@@ -32,15 +32,6 @@ class Color:
 def now_folder() -> str:
     return f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-def confirm(prompt):
-    while True:
-        user_input = input(prompt + " [y/n]: ").strip().lower()
-        if user_input in {'y', 'yes'}:
-            return True
-        elif user_input in {'n', 'no'}:
-            return False
-        else:
-            print("Invalid input. Please enter 'y' or 'n'.")
 
 def delete_objects(s3, bucketname, prefix):
     response = s3.list_objects_v2(Bucket=bucketname, Prefix=prefix)

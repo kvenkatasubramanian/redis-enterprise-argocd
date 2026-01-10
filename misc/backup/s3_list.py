@@ -146,7 +146,7 @@ def delete_s3_timestamp_folders(
 
 def main():
     parser = argparse.ArgumentParser(description='Export or Import databases to/from AWS S3')
-    parser.add_argument("--mode", required=True, choices=["list", "import"], help="list or import mode")   # <-- NEW
+    parser.add_argument("--mode", required=True, choices=["list", "import"], help="list or import mode")   
     parser.add_argument("--timestamp", help="Timestamp for import mode")
 
     args = None
@@ -158,7 +158,7 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    mode = args.mode                                                                                        # <-- NEW
+    mode = args.mode                                                                                        
     timestamp = args.timestamp 
 
     # Read secrets from environment variables (Kubernetes Secrets)
@@ -190,7 +190,7 @@ def main():
         sys.exit(1)
 
     # Validate timestamp only for import mode
-    if mode == "import" and not timestamp:                                                         # <-- NEW
+    if mode == "import" and not timestamp:                                                         
         print(Color.RED + "Error: --timestamp is required in import mode" + Color.RESET)
         logging.error("Error: --timestamp is required in import mode")
         sys.exit(1)
@@ -284,7 +284,7 @@ def main():
     # -------------------------------
     # MODE = LIST
     # -------------------------------
-    if mode == "list":                                                                                       # <-- NEW
+    if mode == "list":                                                                                       
         print(Color.INFO + f"\nAvailable timestamps for the database: {dbname}" + Color.RESET)
         logging.info(f"Available timestamps for the database: {dbname}")
         for i, ts in enumerate(timestamps, 1):
@@ -300,64 +300,6 @@ def main():
 
         print(Color.GREEN + f"\n {summary} " + Color.RESET)
 
-
-        # # ---------------------------------------------------
-        # # Find folders older than 31 days
-        # # ---------------------------------------------------
-        # now = datetime.now(timezone.utc)
-        # cutoff = now - dt.timedelta(days=31)
-
-        # old_timestamps = []
-        # for ts in timestamps:
-        #     try:
-        #         ts_dt = datetime.strptime(ts, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
-        #         if ts_dt < cutoff:
-        #             old_timestamps.append(ts)
-        #     except ValueError:
-        #         logging.warning(f"Skipping invalid timestamp folder: {ts}")
-        #         print(Color.ORANGE + f"Skipping invalid timestamp folder: {ts}" + Color.RESET)
-
-        # if not old_timestamps:
-        #     print(Color.GREEN + "\nNo folders older than 31 days found." + Color.RESET)
-        #     logging.info("No folders older than 31 days found.")
-        #     return
-
-        # print(Color.ORANGE + "\nThe following folders are older than 31 days and eligible for deletion:" + Color.RESET)
-        # logging.info("Folders older than 31 days eligible for deletion:")
-
-        # for ts in old_timestamps:
-        #     print(f" - {ts}")
-        #     logging.info(f"Marked for deletion: s3://{bucketname}/{hostname}/{dbname}/{ts}/")
-        #     print(Color.INFO + f"Marked for deletion: s3://{bucketname}/{hostname}/{dbname}/{ts}/" + Color.RESET)
-
-        # total_objects_deleted = 0
-        # # ---------------------------------------------------
-        # # Delete folders
-        # # ---------------------------------------------------
-        # for ts in old_timestamps:
-        #     prefix = f"{hostname}/{dbname}/{ts}/"
-        #     print(Color.INFO + f"Deleting folder: {prefix}" + Color.RESET)
-        #     logging.info(f"Deleting folder: {prefix}")
-        #     deleted = delete_objects(s3, bucketname, prefix)
-        #     total_objects_deleted += deleted
-
-        #     logging.info(
-        #         f"Completed deletion for folder {ts} "
-        #         f"(objects deleted: {deleted})"
-        #     )
-
-        # logging.info(
-        #     f"Deletion summary: folders deleted={len(old_timestamps)}, "
-        #     f"objects deleted={total_objects_deleted}"
-        # )
-
-        # print(
-        #     Color.GREEN +
-        #     f"\nDeletion completed. Folders: {len(old_timestamps)}, "
-        #     f"Objects deleted: {total_objects_deleted}" +
-        #     Color.RESET
-        # )
-
-
+    
 if __name__ == "__main__":
     main()
