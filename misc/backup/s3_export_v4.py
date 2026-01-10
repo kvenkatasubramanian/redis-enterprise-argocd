@@ -62,9 +62,15 @@ def delete_s3_timestamp_folders(
 
     logging.info(
         f"Starting S3 cleanup before export: "
-        f"s3://{bucketname}/{hostname}/{dbname}, "
+        f"{bucketname}/{hostname}/{dbname}, "
         f"retention_days={retention_days}, cutoff={cutoff.isoformat()}"
     )
+
+    print(Color.INFO +
+        f"Starting S3 cleanup before export: "
+        f"{bucketname}/{hostname}/{dbname}, "
+        f"retention_days={retention_days}, cutoff={cutoff.isoformat()}" + Color.RESET
+    )   
 
     paginator = s3.get_paginator("list_objects_v2")
     timestamps = set()
@@ -84,19 +90,21 @@ def delete_s3_timestamp_folders(
     old_timestamps = []
     for ts in sorted(timestamps):
         try:
-            ts_dt = datetime.strptime(ts, "%Y%m%d%H%M%S").replace(
+            ts_dt = datetime.strptime(ts, '%Y%m%d%H%M%S').replace(
                 tzinfo=timezone.utc
             )
             if ts_dt < cutoff:
                 old_timestamps.append(ts)
         except ValueError:
             logging.warning(f"Skipping invalid timestamp folder: {ts}")
+            print(Color.ORANGE + f"Skipping invalid timestamp folder: {ts}" + Color.RESET)  
 
     total_objects_deleted = 0
 
     for ts in old_timestamps:
         prefix = f"{hostname}/{dbname}/{ts}/"
-        logging.info(f"Deleting old backup folder: s3://{bucketname}/{prefix}")
+        logging.info(f"Deleting old backup folder: {bucketname}/{prefix}")
+        print(Color.INFO + f"Deleting old backup folder: {bucketname}/{prefix}" + Color.RESET)
 
         for page in paginator.paginate(
             Bucket=bucketname,
@@ -111,12 +119,17 @@ def delete_s3_timestamp_folders(
                     total_objects_deleted += 1
                     logging.info(
                         f"Deleted S3 object: "
-                        f"s3://{bucketname}/{obj['Key']}"
+                        f"{bucketname}/{obj['Key']}"
                     )
 
     logging.info(
         f"S3 cleanup completed: folders_deleted={len(old_timestamps)}, "
         f"objects_deleted={total_objects_deleted}"
+    )
+
+    print(Color.GREEN +
+        f"S3 cleanup completed: folders_deleted={len(old_timestamps)}, "
+        f"objects_deleted={total_objects_deleted}" + Color.RESET
     )
 
     return {
@@ -230,6 +243,22 @@ def main():
                     aws_secret_access_key=aws_secret_access_key_id,
                     verify=False)
 
+            # Cleanup old backups before export
+            summary = delete_s3_timestamp_folders(
+                s3=s3,
+                bucketname=bucketname,
+                hostname=hostname,
+                dbname=db_name,
+                retention_days=31
+            )
+            logging.info(
+                f"Pre-export cleanup summary for {db_name}: "
+                f"{summary}"
+            )
+            print(Color.INFO +
+                f"Pre-export cleanup summary for {db_name}: "
+                f"{summary}" + Color.RESET
+            )
 
             prefix = f"{hostname}/{db_name}/{subdir}/"
 
@@ -254,15 +283,6 @@ def main():
                 logging.error(f"S3 error: {e}")
                 print(Color.RED + f"S3 error: {e}" + Color.RESET)
                 continue
-
-            summary = delete_s3_timestamp_folders(
-                s3=s3,
-                bucketname=bucketname,
-                hostname=hostname,
-                dbname=dbname,
-                retention_days=5
-            )
-
 
             # Export DB
             export_data = {

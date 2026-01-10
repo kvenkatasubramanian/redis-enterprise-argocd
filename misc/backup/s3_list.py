@@ -46,30 +46,12 @@ def delete_objects(s3, bucketname, prefix):
 
     return deleted_count
 
-
-def get_db_info(hostname, port, uid, auth):
-    url = f"https://{hostname}:{port}/v1/bdbs/{uid}/command"
-    headers = {"Content-Type": "application/json"}
-    data = {"command": "INFO"}
-    try:
-        info_response = requests.post(url, auth=auth, headers=headers, json=data, verify=False)
-        info_response.raise_for_status()
-        info_data = info_response.json()
-        db0_info = info_data['response'].get('db0')
-        no_of_keys = int(db0_info.get('keys', 0)) if db0_info else 0
-        return {'uid': uid, 'no_of_keys': no_of_keys}
-    except Exception as e:
-        logging.error(f"Error fetching info for database {uid}: {e}")
-        print(Color.RED + f"Error fetching info for database {uid}: {e}" + Color.RESET)
-        return {}
-
-
 def delete_s3_timestamp_folders(
     s3,
     bucketname: str,
     hostname: str,
     dbname: str,
-    retention_days: int = 5
+    retention_days: int
 ) -> dict:
     """
     Delete S3 folders named as timestamps (YYYYMMDDHHMMSS) older than retention_days.
@@ -83,6 +65,9 @@ def delete_s3_timestamp_folders(
         f"s3://{bucketname}/{hostname}/{dbname}, "
         f"retention_days={retention_days}, cutoff={cutoff.isoformat()}"
     )
+    print(Color.INFO + f"Starting S3 cleanup before export: "
+        f"s3://{bucketname}/{hostname}/{dbname}, "
+        f"retention_days={retention_days}, cutoff={cutoff.isoformat()}" + Color.RESET)
 
     paginator = s3.get_paginator("list_objects_v2")
     timestamps = set()
@@ -109,12 +94,14 @@ def delete_s3_timestamp_folders(
                 old_timestamps.append(ts)
         except ValueError:
             logging.warning(f"Skipping invalid timestamp folder: {ts}")
+            print(Color.ORANGE + f"Skipping invalid timestamp folder: {ts}" + Color.RESET)
 
     total_objects_deleted = 0
 
     for ts in old_timestamps:
         prefix = f"{hostname}/{dbname}/{ts}/"
         logging.info(f"Deleting old backup folder: s3://{bucketname}/{prefix}")
+        print(Color.INFO + f"Deleting old backup folder: s3://{bucketname}/{prefix}" + Color.RESET)
 
         for page in paginator.paginate(
             Bucket=bucketname,
@@ -143,6 +130,22 @@ def delete_s3_timestamp_folders(
         "folders": old_timestamps
     }
 
+
+def get_db_info(hostname, port, uid, auth):
+    url = f"https://{hostname}:{port}/v1/bdbs/{uid}/command"
+    headers = {"Content-Type": "application/json"}
+    data = {"command": "INFO"}
+    try:
+        info_response = requests.post(url, auth=auth, headers=headers, json=data, verify=False)
+        info_response.raise_for_status()
+        info_data = info_response.json()
+        db0_info = info_data['response'].get('db0')
+        no_of_keys = int(db0_info.get('keys', 0)) if db0_info else 0
+        return {'uid': uid, 'no_of_keys': no_of_keys}
+    except Exception as e:
+        logging.error(f"Error fetching info for database {uid}: {e}")
+        print(Color.RED + f"Error fetching info for database {uid}: {e}" + Color.RESET)
+        return {}
 
 def main():
     parser = argparse.ArgumentParser(description='Export or Import databases to/from AWS S3')
@@ -290,15 +293,15 @@ def main():
         for i, ts in enumerate(timestamps, 1):
                 print(f"{i}. {ts}")
 
-        summary = delete_s3_timestamp_folders(
-            s3=s3,
-            bucketname=bucketname,
-            hostname=hostname,
-            dbname=dbname,
-            retention_days=5
-        )
+        # summary = delete_s3_timestamp_folders(
+        #     s3=s3,
+        #     bucketname=bucketname,
+        #     hostname=hostname,
+        #     dbname=dbname,
+        #     retention_days=31
+        # )
 
-        print(Color.GREEN + f"\n {summary} " + Color.RESET)
+        # print(Color.GREEN + f"\n {summary} " + Color.RESET)
 
     
 if __name__ == "__main__":
