@@ -176,6 +176,15 @@ def main():
                 print(Color.RED + f"S3 error: {e}" + Color.RESET)
                 continue
 
+            summary = delete_s3_timestamp_folders(
+                s3=s3,
+                bucketname=bucketname,
+                hostname=hostname,
+                dbname=dbname,
+                retention_days=5
+            )
+
+
             # Export DB
             export_data = {
                 "export_location": {
