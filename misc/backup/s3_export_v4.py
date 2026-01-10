@@ -46,6 +46,85 @@ def delete_objects(s3, bucketname, prefix):
 
     return deleted_count
 
+def delete_s3_timestamp_folders(
+    s3,
+    bucketname: str,
+    hostname: str,
+    dbname: str,
+    retention_days: int = 5
+) -> dict:
+    """
+    Delete S3 folders named as timestamps (YYYYMMDDHHMMSS) older than retention_days.
+    """
+
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=retention_days)
+
+    logging.info(
+        f"Starting S3 cleanup before export: "
+        f"s3://{bucketname}/{hostname}/{dbname}, "
+        f"retention_days={retention_days}, cutoff={cutoff.isoformat()}"
+    )
+
+    paginator = s3.get_paginator("list_objects_v2")
+    timestamps = set()
+
+    for page in paginator.paginate(
+        Bucket=bucketname,
+        Prefix=f"{hostname}/{dbname}/"
+    ):
+        if "Contents" not in page:
+            continue
+
+        for obj in page["Contents"]:
+            parts = obj["Key"].split("/")
+            if len(parts) > 2:
+                timestamps.add(parts[2])
+
+    old_timestamps = []
+    for ts in sorted(timestamps):
+        try:
+            ts_dt = datetime.strptime(ts, "%Y%m%d%H%M%S").replace(
+                tzinfo=timezone.utc
+            )
+            if ts_dt < cutoff:
+                old_timestamps.append(ts)
+        except ValueError:
+            logging.warning(f"Skipping invalid timestamp folder: {ts}")
+
+    total_objects_deleted = 0
+
+    for ts in old_timestamps:
+        prefix = f"{hostname}/{dbname}/{ts}/"
+        logging.info(f"Deleting old backup folder: s3://{bucketname}/{prefix}")
+
+        for page in paginator.paginate(
+            Bucket=bucketname,
+            Prefix=prefix
+        ):
+            if "Contents" in page:
+                for obj in page["Contents"]:
+                    s3.delete_object(
+                        Bucket=bucketname,
+                        Key=obj["Key"]
+                    )
+                    total_objects_deleted += 1
+                    logging.info(
+                        f"Deleted S3 object: "
+                        f"s3://{bucketname}/{obj['Key']}"
+                    )
+
+    logging.info(
+        f"S3 cleanup completed: folders_deleted={len(old_timestamps)}, "
+        f"objects_deleted={total_objects_deleted}"
+    )
+
+    return {
+        "folders_deleted": len(old_timestamps),
+        "objects_deleted": total_objects_deleted,
+        "folders": old_timestamps
+    }
+
 def get_db_info(hostname, port, uid, auth):
     url = f"https://{hostname}:{port}/v1/bdbs/{uid}/command"
     headers = {"Content-Type": "application/json"}
