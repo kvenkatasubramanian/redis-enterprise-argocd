@@ -14,7 +14,14 @@ import urllib3
 import re
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# ---------------------------------------------------
+# Global retention configuration (env override)
+# ---------------------------------------------------
+RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "31"))
+
+# ---------------------------------------------------
 # Setup logging
+# ---------------------------------------------------
 log_file = f"db_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}.log"
 logging.basicConfig(
     filename=log_file,
@@ -31,8 +38,9 @@ class Color:
 
 def now_folder() -> str:
     return f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
-
+# ---------------------------------------------------
 # Delete all objects under a given prefix
+# ---------------------------------------------------
 def delete_objects(s3, bucketname, prefix):
     deleted_count = 0
 
@@ -46,6 +54,9 @@ def delete_objects(s3, bucketname, prefix):
 
     return deleted_count
 
+# ---------------------------------------------------
+# Delete timestamp-based folders older than retention
+# ---------------------------------------------------
 def delete_s3_timestamp_folders(
     s3,
     bucketname: str,
@@ -244,12 +255,15 @@ def main():
                     verify=False)
 
             # Cleanup old backups before export
+            logging.info(f"S3 backup retention configured: {RETENTION_DAYS} days")
+            print(Color.INFO + f"S3 backup retention configured: {RETENTION_DAYS} days" + Color.RESET)
+
             summary = delete_s3_timestamp_folders(
                 s3=s3,
                 bucketname=bucketname,
                 hostname=hostname,
                 dbname=db_name,
-                retention_days=31
+                retention_days=RETENTION_DAYS
             )
             logging.info(
                 f"Pre-export cleanup summary for {db_name}: "
