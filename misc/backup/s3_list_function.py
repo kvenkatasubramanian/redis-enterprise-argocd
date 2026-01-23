@@ -30,89 +30,194 @@ class Color:
     RESET = '\033[0m'
 
 
-def main():
-    retention_days: int = 7
+# def main():
+#     retention_days: int = 7
+#     now = datetime.now(timezone.utc)
+#     cutoff = now - timedelta(days=retention_days)
+
+#     cluster_name = os.getenv('CLUSTER_NAME')
+#     bucketname = os.getenv('BUCKET_NAME')
+#     endpoint_url = os.getenv('ENDPOINT_URL')  
+#     aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
+#     aws_secret_access_key_id = os.getenv('AWS_SECRET_ACCESS_KEY_ID')
+#     dbname = os.getenv('DB_NAME')  
+
+#     missing = []
+#     if not cluster_name: missing.append('CLUSTER_NAME')
+#     if not bucketname: missing.append("BUCKET_NAME")
+#     if not endpoint_url: missing.append("ENDPOINT_URL")       
+#     if not aws_access_key_id: missing.append("AWS_ACCESS_KEY_ID")
+#     if not aws_secret_access_key_id: missing.append("AWS_SECRET_ACCESS_KEY_ID")
+#     if not dbname: missing.append("DB_NAME")
+
+#     if missing:
+#         logging.error(f"Missing required environment variables: {', '.join(missing)}")
+#         print(Color.RED + f"Missing required environment variables: {', '.join(missing)}" + Color.RESET)
+#         sys.exit(1)
+
+
+#     # Connect to S3
+#     s3 = boto3.client('s3', 
+#         endpoint_url=endpoint_url,
+#         aws_access_key_id=aws_access_key_id, 
+#         aws_secret_access_key=aws_secret_access_key_id,
+#         verify=False)
+            
+#     try:
+#         s3.head_bucket(Bucket=bucketname)            
+#     except botocore.exceptions.ClientError as e:
+#         if e.response['Error']['Code'] == '404':
+#             logging.error(f"Subdirectories {cluster_name} does not exist.")
+#             print(Color.RED + f'Subdirectories {cluster_name} does not exist.' + Color.RESET)
+#             sys.exit(1)
+#         else:
+#             raise        
+    
+#    # List directories under the bucket
+#     paginator = s3.get_paginator('list_objects_v2')
+#     result = paginator.paginate(Bucket=bucketname, Prefix=cluster_name)
+#     timestamps = set()
+
+#     # Add all databases
+#     for page in result:
+#         if 'Contents' in page:
+#             for obj in page['Contents']:
+#                 key = obj['Key']
+#                 parts = obj['Key'].split('/')
+#                 if len(parts) > 2:
+#                     tmp_db_name = parts[1]   #db_name
+#                     if tmp_db_name == dbname:
+#                         timestamps.add(parts[2]) # timestamp
+                        
+#     required_timestamps = []
+#     for ts in sorted(timestamps):
+#         try:
+#             ts_dt = datetime.strptime(ts, '%Y%m%d%H%M%S').replace(
+#                 tzinfo=timezone.utc
+#             )
+#             if ts_dt >= cutoff:
+#                 required_timestamps.append(ts)
+#         except ValueError:
+#             logging.warning(f"Skipping invalid timestamp folder: {ts}")
+#             print(Color.ORANGE + f"Skipping invalid timestamp folder: {ts}" + Color.RESET) 
+
+
+#     #List all the timestamps for the specified dbname
+#     timestamps = sorted(required_timestamps) 
+#     if not timestamps:
+#         logging.warning(f"No timestamps found for given {cluster_name}, db: {dbname}.")
+#         print(Color.RED +f"No timestamps found for given {cluster_name}, db: {dbname}." + Color.RESET)
+#         sys.exit(1) 
+
+#     print(Color.INFO + f"\nAvailable timestamps for the cluster: {cluster_name}, db: {dbname}" + Color.RESET)
+#     logging.info(f"Available timestamps for the cluster: {cluster_name} db: {dbname}")
+#     for i, ts in enumerate(timestamps, 1):
+#             print(f"{i}. {ts}")
+
+
+def display_7days_backupfiles(
+    bucket_name,
+    cluster_name,
+    endpoint_url,
+    dbname,
+    aws_access_key_id,
+    aws_secret_access_key_id,
+):
+    # Validate required arguments
+    missing = []
+
+    if not bucket_name:
+        missing.append("bucket_name")
+    if not cluster_name:
+        missing.append("cluster_name")
+    if not endpoint_url:
+        missing.append("endpoint_url")
+    if not dbname:
+        missing.append("dbname")
+    if not aws_access_key_id:
+        missing.append("aws_access_key_id")
+    if not aws_secret_access_key_id:
+        missing.append("aws_secret_access_key_id")
+
+    if missing:
+        msg = f"Missing required inputs: {', '.join(missing)}"
+        logging.error(msg)
+        print(Color.RED + msg + Color.RESET)
+        sys.exit(1)
+
+    retention_days = 7
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=retention_days)
 
-    cluster_name = os.getenv('CLUSTER_NAME')
-    bucketname = os.getenv('BUCKET_NAME')
-    endpoint_url = os.getenv('ENDPOINT_URL')  
-    aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
-    aws_secret_access_key_id = os.getenv('AWS_SECRET_ACCESS_KEY_ID')
-    dbname = os.getenv('DB_NAME')  
-
-    missing = []
-    if not cluster_name: missing.append('CLUSTER_NAME')
-    if not bucketname: missing.append("BUCKET_NAME")
-    if not endpoint_url: missing.append("ENDPOINT_URL")       
-    if not aws_access_key_id: missing.append("AWS_ACCESS_KEY_ID")
-    if not aws_secret_access_key_id: missing.append("AWS_SECRET_ACCESS_KEY_ID")
-
-    if missing:
-        logging.error(f"Missing required environment variables: {', '.join(missing)}")
-        print(Color.RED + f"Missing required environment variables: {', '.join(missing)}" + Color.RESET)
-        sys.exit(1)
-
-
     # Connect to S3
-    s3 = boto3.client('s3', 
+    s3 = boto3.client(
+        "s3",
         endpoint_url=endpoint_url,
-        aws_access_key_id=aws_access_key_id, 
+        aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key_id,
-        verify=False)
-            
+        verify=False,
+    )
+
     try:
-        s3.head_bucket(Bucket=bucketname)            
+        s3.head_bucket(Bucket=bucket_name)
     except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == '404':
-            logging.error(f"Subdirectories {cluster_name} does not exist.")
-            print(Color.RED + f'Subdirectories {cluster_name} does not exist.' + Color.RESET)
+        if e.response["Error"]["Code"] == "404":
+            msg = f"Subdirectories {cluster_name} does not exist."
+            logging.error(msg)
+            print(Color.RED + msg + Color.RESET)
             sys.exit(1)
-        else:
-            raise        
-    
-   # List directories under the bucket
-    paginator = s3.get_paginator('list_objects_v2')
-    result = paginator.paginate(Bucket=bucketname, Prefix=cluster_name)
+        raise
+
+    paginator = s3.get_paginator("list_objects_v2")
+    result = paginator.paginate(Bucket=bucket_name, Prefix=cluster_name)
     timestamps = set()
 
-    # Add all databases
     for page in result:
-        if 'Contents' in page:
-            for obj in page['Contents']:
-                key = obj['Key']
-                parts = obj['Key'].split('/')
-                if len(parts) > 2:
-                    tmp_db_name = parts[1]   #db_name
-                    if tmp_db_name == dbname:
-                        timestamps.add(parts[2]) # timestamp
-                        
+        for obj in page.get("Contents", []):
+            parts = obj["Key"].split("/")
+            if len(parts) > 2 and parts[1] == dbname:
+                timestamps.add(parts[2])
+
     required_timestamps = []
     for ts in sorted(timestamps):
         try:
-            ts_dt = datetime.strptime(ts, '%Y%m%d%H%M%S').replace(
+            ts_dt = datetime.strptime(ts, "%Y%m%d%H%M%S").replace(
                 tzinfo=timezone.utc
             )
-            if ts_dt > cutoff:
+            if ts_dt >= cutoff:
                 required_timestamps.append(ts)
         except ValueError:
             logging.warning(f"Skipping invalid timestamp folder: {ts}")
-            print(Color.ORANGE + f"Skipping invalid timestamp folder: {ts}" + Color.RESET) 
+            print(Color.ORANGE + f"Skipping invalid timestamp folder: {ts}" + Color.RESET)
+
+    if not required_timestamps:
+        msg = f"No timestamps found for given {cluster_name}, db: {dbname}."
+        logging.warning(msg)
+        print(Color.RED + msg + Color.RESET)
+        sys.exit(1)
+
+    print(
+        Color.INFO
+        + f"\nAvailable timestamps for the cluster: {cluster_name}, db: {dbname}"
+        + Color.RESET
+    )
+    logging.info(
+        f"Available timestamps for the cluster: {cluster_name}, db: {dbname}"
+    )
+
+    for i, ts in enumerate(sorted(required_timestamps), 1):
+        print(f"{i}. {ts}")
 
 
-    #List all the timestamps for the specified dbname
-    timestamps = sorted(timestamps) 
-    if not timestamps:
-        logging.warning(f"No timestamps found for given {cluster_name}.")
-        print(Color.RED +f"No timestamps found for given {cluster_name}." + Color.RESET)
-        sys.exit(1) 
+def main():
+    display_7days_backupfiles(
+        bucket_name=os.getenv("BUCKET_NAME"),
+        cluster_name=os.getenv("CLUSTER_NAME"),
+        endpoint_url=os.getenv("ENDPOINT_URL"),
+        dbname=os.getenv("DB_NAME"),
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key_id=os.getenv("AWS_SECRET_ACCESS_KEY_ID"),
+    )
 
-    print(Color.INFO + f"\nAvailable timestamps for the cluster: {cluster_name}" + Color.RESET)
-    logging.info(f"Available timestamps for the cluster: {cluster_name}")
-    for i, ts in enumerate(timestamps, 1):
-            print(f"{i}. {ts}")
-
-    
 if __name__ == "__main__":
     main()
