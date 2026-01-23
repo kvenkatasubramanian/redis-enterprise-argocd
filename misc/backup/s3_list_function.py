@@ -31,12 +31,16 @@ class Color:
 
 
 def main():
+    retention_days: int = 7
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=retention_days)
+
     cluster_name = os.getenv('CLUSTER_NAME')
     bucketname = os.getenv('BUCKET_NAME')
     endpoint_url = os.getenv('ENDPOINT_URL')  
     aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
     aws_secret_access_key_id = os.getenv('AWS_SECRET_ACCESS_KEY_ID')
-
+    dbname = os.getenv('DB_NAME')  
 
     missing = []
     if not cluster_name: missing.append('CLUSTER_NAME')
@@ -81,20 +85,33 @@ def main():
                 parts = obj['Key'].split('/')
                 if len(parts) > 2:
                     tmp_db_name = parts[1]   #db_name
-                    timestamps.add(tmp_db_name, parts[2]) # timestamp
+                    if tmp_db_name == dbname:
+                        timestamps.add(parts[2]) # timestamp
+                        
+    required_timestamps = []
+    for ts in sorted(timestamps):
+        try:
+            ts_dt = datetime.strptime(ts, '%Y%m%d%H%M%S').replace(
+                tzinfo=timezone.utc
+            )
+            if ts_dt > cutoff:
+                required_timestamps.append(ts)
+        except ValueError:
+            logging.warning(f"Skipping invalid timestamp folder: {ts}")
+            print(Color.ORANGE + f"Skipping invalid timestamp folder: {ts}" + Color.RESET) 
+
 
     #List all the timestamps for the specified dbname
     timestamps = sorted(timestamps) 
     if not timestamps:
-        logging.warning(f"No timestamps found for given {dbname}. Import cannot proceed.")
-        print(Color.RED +f"No timestamps found for given {dbname}. Import cannot proceed." + Color.RESET)
+        logging.warning(f"No timestamps found for given {cluster_name}.")
+        print(Color.RED +f"No timestamps found for given {cluster_name}." + Color.RESET)
         sys.exit(1) 
 
     print(Color.INFO + f"\nAvailable timestamps for the cluster: {cluster_name}" + Color.RESET)
     logging.info(f"Available timestamps for the cluster: {cluster_name}")
     for i, ts in enumerate(timestamps, 1):
             print(f"{i}. {ts}")
-
 
     
 if __name__ == "__main__":
